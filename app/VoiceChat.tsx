@@ -7,14 +7,25 @@ export default function VoiceChat() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const [recording, setRecording] = useState(false);
+
   const [accent, setAccent] = useState("American");
 
   const [audioUrl, setAudioUrl] = useState("");
 
   const [aiMessage, setAiMessage] = useState("");
+
   const [evaluation, setEvaluation] = useState("");
 
   async function startRecording() {
+
+    if (!navigator.mediaDevices) {
+
+      alert(
+        "Microphone access is not supported in this browser."
+      );
+
+      return;
+    }
 
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
@@ -32,76 +43,118 @@ export default function VoiceChat() {
 
     mediaRecorder.onstop = async () => {
 
-      const audioBlob = new Blob(audioChunks, {
-        type: "audio/webm",
-      });
+      try {
 
-      const formData = new FormData();
+        const audioBlob = new Blob(audioChunks, {
+          type: "audio/webm",
+        });
 
-      formData.append("audio", audioBlob);
+        const formData = new FormData();
 
-      const response = await fetch("/api/transcribe", {
-        method: "POST",
-        body: formData,
-      });
+        formData.append("audio", audioBlob);
 
-      const data = await response.json();
+        const response = await fetch("/api/transcribe", {
+          method: "POST",
+          body: formData,
+        });
 
-      console.log(data);
+        const data = await response.json();
 
-      const chatResponse = await fetch("/api/chat", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-  message: data.text,
-  accent,
-}),
-});
+        console.log("TRANSCRIPTION:", data);
 
-const aiData = await chatResponse.json();
+        const chatResponse = await fetch("/api/chat", {
+          method: "POST",
 
-console.log("AI DATA:", aiData);
+          headers: {
+            "Content-Type": "application/json",
+          },
 
-const fullResponse = aiData.response;
+          body: JSON.stringify({
+            message: data.text,
+            accent,
+          }),
+        });
 
-console.log(fullResponse);
+        const aiData = await chatResponse.json();
 
-const parts = fullResponse.split(/coaching:/i);
+        console.log("AI DATA:", aiData);
 
-console.log("CONVERSATION:", parts[0]);
-console.log("EVALUATION:", parts[1]);
+        const fullResponse = aiData.response || "";
 
-setAiMessage(parts[0].trim());
+        console.log("FULL RESPONSE:", fullResponse);
 
-if (parts[1]) {
-  setEvaluation(parts[1].trim());
-}
+        // =========================
+        // PARSE RESPONSE
+        // =========================
 
+        const parts =
+  fullResponse.split(/coaching:/i);
 
-const voiceResponse = await fetch("/api/voice", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-  text: parts[0].trim().slice(0, 180),
-  accent,
-}),
-});
+const conversationPart =
+  parts[0]?.trim() || "";
 
-const arrayBuffer = await voiceResponse.arrayBuffer();
+const coachingPart =
+  parts[1]?.trim() || "";
 
-const voiceBlob = new Blob(
-  [arrayBuffer],
-  { type: "audio/mpeg" }
+setAiMessage(conversationPart);
+
+setEvaluation(coachingPart);
+
+console.log(
+  "CONVERSATION:",
+  conversationPart
 );
 
-const generatedAudioUrl = URL.createObjectURL(voiceBlob);
+console.log(
+  "COACHING:",
+  coachingPart
+);
 
-setAudioUrl(generatedAudioUrl);
+        
 
+        // =========================
+        // GENERATE AUDIO
+        // =========================
+
+        const voiceResponse = await fetch(
+          "/api/voice",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify({
+              text: conversationPart.slice(0, 190),
+              accent,
+            }),
+          }
+        );
+
+        const arrayBuffer =
+          await voiceResponse.arrayBuffer();
+
+        const voiceBlob = new Blob(
+          [arrayBuffer],
+          {
+            type: "audio/mpeg",
+          }
+        );
+
+        const generatedAudioUrl =
+          URL.createObjectURL(voiceBlob);
+
+        setAudioUrl(generatedAudioUrl);
+
+      } catch (error) {
+
+        console.error(error);
+
+        alert(
+          "Something went wrong processing the conversation."
+        );
+      }
     };
 
     mediaRecorder.start();
@@ -117,66 +170,81 @@ setAudioUrl(generatedAudioUrl);
   }
 
   return (
-  <div className="flex flex-col gap-4">
 
-    <select
-      value={accent}
-      onChange={(e) => setAccent(e.target.value)}
-      className="p-3 border rounded"
-    >
-      <option>American</option>
-      <option>British</option>
-      <option>Indian</option>
-      <option>European</option>
-    </select>
+    <div className="flex flex-col gap-4 p-4">
 
-    <button
-      onClick={recording ? stopRecording : startRecording}
-      className="bg-blue-500 text-white p-4 rounded"
-    >
-      {recording ? "Stop Recording" : "Start Recording"}
-    </button>
+      <select
+        value={accent}
+        onChange={(e) =>
+          setAccent(e.target.value)
+        }
+        className="p-3 border rounded"
+      >
+        <option>American</option>
+        <option>British</option>
+        <option>Indian</option>
+        <option>European</option>
+      </select>
 
-    <div className="text-lg">
-      {recording ? "Recording..." : "Ready"}
+      <button
+        onClick={
+          recording
+            ? stopRecording
+            : startRecording
+        }
+        className="bg-blue-500 text-white p-4 rounded"
+      >
+        {recording
+          ? "Stop Recording"
+          : "Start Recording"}
+      </button>
+
+      <div className="text-lg">
+        {recording
+          ? "Recording..."
+          : "Ready"}
+      </div>
+
+      {aiMessage && (
+
+        <div className="bg-gray-100 p-4 rounded text-black">
+
+          <div className="font-bold mb-2">
+            AI Coach
+          </div>
+
+          <div className="whitespace-pre-wrap">
+            {aiMessage}
+          </div>
+
+        </div>
+      )}
+
+      {evaluation && (
+
+        <div className="bg-blue-100 p-4 rounded text-black">
+
+          <div className="font-bold mb-2">
+            Quick Coaching
+          </div>
+
+          <div className="whitespace-pre-wrap">
+            {evaluation}
+          </div>
+
+        </div>
+      )}
+
+      {audioUrl && (
+
+        <audio
+          controls
+          autoPlay
+          src={audioUrl}
+          className="w-full"
+        />
+      )}
+
     </div>
-
-    {aiMessage && (
-      <div className="bg-gray-100 p-4 rounded text-black">
-
-        <div className="font-bold mb-2">
-          AI Coach
-        </div>
-
-        <div>
-          {aiMessage}
-        </div>
-
-      </div>
-    )}
-
-    {evaluation && (
-      <div className="bg-blue-100 p-4 rounded text-black">
-
-        <div className="font-bold mb-2">
-          Quick Coaching
-        </div>
-
-        <pre className="whitespace-pre-wrap">
-          {evaluation}
-        </pre>
-
-      </div>
-    )}
-
-    {audioUrl && (
-      <audio
-        controls
-        autoPlay
-        src={audioUrl}
-      />
-    )}
-
-  </div>
-);
+  );
 }
