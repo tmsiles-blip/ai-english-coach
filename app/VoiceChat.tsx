@@ -68,7 +68,7 @@ const fullResponse = aiData.response;
 
 console.log(fullResponse);
 
-const parts = fullResponse.split(/evaluation:/i);
+const parts = fullResponse.split(/coaching:/i);
 
 console.log("CONVERSATION:", parts[0]);
 console.log("EVALUATION:", parts[1]);
@@ -159,7 +159,7 @@ setAudioUrl(generatedAudioUrl);
       <div className="bg-blue-100 p-4 rounded text-black">
 
         <div className="font-bold mb-2">
-          Evaluation
+          Quick Coaching
         </div>
 
         <pre className="whitespace-pre-wrap">
